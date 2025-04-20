@@ -11,6 +11,11 @@ class UserCreateDTO(BaseModel):
     external_id: Optional[str] = None
 
 
+class UserDTO(UserCreateDTO):
+    id: str
+    is_active: bool
+
+
 class UserResponseDTO(BaseModel):
     id: str
     email: EmailStr
