@@ -1,14 +1,13 @@
-from datetime import timedelta
-
 from fastapi import APIRouter, Depends, HTTPException
 
+from src.core.dependencies import container
 from src.domain.dtos.user_dto import UserCreateDTO, UserResponseDTO, UserUpdateDTO
-from src.domain.models.user import User
+from src.domain.exceptions import ServiceException
+from src.domain.services.user_service import UserService
 from src.infrastructure.dependencies import (
     get_auth_service,
     get_oauth_service,
     get_password_reset_service,
-    get_user_repository,
 )
 from src.presentation.dtos.auth_dto import LoginDTO, TokenDTO
 from src.presentation.dtos.password_reset_dto import (
@@ -20,22 +19,22 @@ router = APIRouter()
 
 
 @router.post(
-    "/auth/login", response_model=TokenDTO, status_code=200, description="Login user"
+    "/auth/login",
+    response_model=TokenDTO,
+    status_code=200,
+    description="Login user",
 )
-async def login(login_data: LoginDTO, auth_service=Depends(get_auth_service)):
-    user = auth_service.authenticate_user(login_data.email, login_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid credentials",
+async def login(login_data: LoginDTO, service=Depends(get_auth_service)):
+    try:
+        return await service.authenticate_user(
+            login_data.email,
+            login_data.password,
         )
-
-    access_token = auth_service.create_access_token(
-        data={"sub": user.email},
-        expires_delta=timedelta(minutes=auth_service.ACCESS_TOKEN_EXPIRE_MINUTES),
-    )
-
-    return TokenDTO(access_token=access_token)
+    except ServiceException as err:
+        raise HTTPException(
+            status_code=err.status_code,
+            detail=err.message,
+        )
 
 
 @router.post(
@@ -45,6 +44,7 @@ async def login(login_data: LoginDTO, auth_service=Depends(get_auth_service)):
     description="Login user with google",
 )
 async def google_auth(token: str, oauth_service=Depends(get_oauth_service)):
+    """Login user with google."""
     user = await oauth_service.verify_google_token(token)
     if not user:
         raise HTTPException(status_code=401, detail="Token inválido ou expirado")
@@ -52,18 +52,23 @@ async def google_auth(token: str, oauth_service=Depends(get_oauth_service)):
 
 
 @router.post(
-    "/users", response_model=UserResponseDTO, status_code=201, description="Create user"
+    "/users",
+    response_model=UserResponseDTO,
+    status_code=201,
+    description="Create user",
 )
 async def create_user(
-    user_data: UserCreateDTO, user_repository=Depends(get_user_repository)
+    user_data: UserCreateDTO,
+    service: UserService = Depends(container.get_user_service),
 ):
-    existing_user = user_repository.find_by_email(user_data.email)
-    if existing_user:
-        raise HTTPException(status_code=400, detail="E-mail already registered")
-
-    user = User(**user_data.model_dump())
-    created_user = user_repository.create(user)
-    return created_user
+    """Create a new user."""
+    try:
+        return await service.create_user(user_data)
+    except ServiceException as e:
+        raise HTTPException(
+            status_code=e.status_code,
+            detail=e.message,
+        )
 
 
 @router.get(
@@ -72,14 +77,19 @@ async def create_user(
     status_code=200,
     description="Get user",
 )
-async def get_user(user_id: str, user_repository=Depends(get_user_repository)):
-    user = user_repository.find_by_id(user_id)
-    if not user:
+async def get_user(
+    user_id: str,
+    service: UserService = Depends(container.get_user_service),
+):
+    """Get a user by id."""
+    try:
+        user = await service.get_user_by_id(user_id)
+        return user
+    except ServiceException as e:
         raise HTTPException(
-            status_code=404,
-            detail="User not found",
+            status_code=e.status_code,
+            detail=e.message,
         )
-    return user
 
 
 @router.put(
@@ -89,27 +99,38 @@ async def get_user(user_id: str, user_repository=Depends(get_user_repository)):
     description="Update user",
 )
 async def update_user(
-    user_id: str, user_data: UserUpdateDTO, user_repository=Depends(get_user_repository)
+    user_id: str,
+    user_data: UserUpdateDTO,
+    service: UserService = Depends(container.get_user_service),
 ):
-    updated_user = user_repository.update(
-        user_id, user_data.model_dump(exclude_unset=True)
-    )
-    if not updated_user:
+    """Update a user."""
+    try:
+        return await service.update_user(user_id, user_data)
+    except ServiceException as e:
         raise HTTPException(
-            status_code=404,
-            detail="User not found",
+            status_code=e.status_code,
+            detail=e.message,
         )
-    return updated_user
 
 
-@router.delete("/users/{user_id}", status_code=204, description="Delete user")
-async def delete_user(user_id: str, user_repository=Depends(get_user_repository)):
-    if not user_repository.delete(user_id):
+@router.delete(
+    "/users/{user_id}",
+    status_code=204,
+    description="Delete user",
+)
+async def delete_user(
+    user_id: str,
+    service: UserService = Depends(container.get_user_service),
+):
+    """Delete a user."""
+    try:
+        await service.delete_user(user_id)
+        return {"message": "User deleted successfully"}
+    except ServiceException as e:
         raise HTTPException(
-            status_code=404,
-            detail="User not found",
+            status_code=e.status_code,
+            detail=e.message,
         )
-    return {"message": "User deleted successfully"}
 
 
 @router.post(
