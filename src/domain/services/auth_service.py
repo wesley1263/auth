@@ -1,49 +1,54 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Optional
 
-from jose import JWTError, jwt
+from jose import jwt
+from loguru import logger
 
-from src.domain.models.user import User
+from src.config.config import settings
+from src.domain.exceptions import ServiceException
+from src.domain.services.user_service import UserService
 from src.infrastructure.repositories.user_repository import UserRepository
+from src.presentation.dtos.auth_dto import TokenDTO
 
 
 class AuthService:
-    def __init__(self):
-        # TODO: Mover para variáveis de ambiente
-        self.SECRET_KEY = "your-secret-key-here"
-        self.ALGORITHM = "HS256"
-        self.ACCESS_TOKEN_EXPIRE_MINUTES = 30
-        self.user_repository = UserRepository()
+    def __init__(self, user_repository: UserRepository, user_service: UserService):
+        self._repo = user_repository
+        self._user_service = user_service
 
-    def create_access_token(
+    async def create_access_token(
         self, data: dict, expires_delta: Optional[timedelta] = None
     ) -> str:
         to_encode = data.copy()
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(UTC.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(
-                minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES
+            expire = datetime.now(UTC.utc) + timedelta(
+                minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
             )
 
         to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(to_encode, self.SECRET_KEY, algorithm=self.ALGORITHM)
+        encoded_jwt = jwt.encode(
+            to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+        )
         return encoded_jwt
 
     def verify_token(self, token: str) -> Optional[dict]:
         try:
-            payload = jwt.decode(token, self.SECRET_KEY, algorithms=[self.ALGORITHM])
+            payload = jwt.decode(
+                token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            )
             return payload
-        except JWTError:
+        except jwt.JWTError as err:
+            logger.error(f"Error decoding token: {err}")
             return None
 
-    def authenticate_user(self, email: str, password: str) -> Optional[User]:
-        user = self.user_repository.find_by_email(email)
-        if not user:
-            return None
-
-        # TODO: Implementar verificação de senha
-        # if not verify_password(password, user.hashed_password):
-        #     return None
-
-        return user
+    async def authenticate_user(self, email: str, password: str) -> TokenDTO:
+        user = await self._user_service.get_user_by_email(email)
+        if not await self._user_service._verify_password(
+            password,
+            user.password,
+        ):
+            raise ServiceException("Invalid credentials", 401)
+        access_token = await self.create_access_token({"sub": user.id})
+        return TokenDTO(access_token=access_token)
