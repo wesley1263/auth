@@ -2,8 +2,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Optional
 
 import jwt
-from decouple import config
 
+from src.config.config import settings
 from src.domain.models.user import User
 from src.infrastructure.repositories.user_repository import UserRepository
 
@@ -11,9 +11,6 @@ from src.infrastructure.repositories.user_repository import UserRepository
 class PasswordResetService:
     def __init__(self, user_repository: UserRepository):
         self.user_repository = user_repository
-        self.SECRET_KEY = config("SECRET_KEY")
-        self.ALGORITHM = "HS256"
-        self.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = config("EXPIRES_TOKEN_MINUTES")
 
     def create_password_reset_token(self, email: str) -> Optional[str]:
         user = self.user_repository.find_by_email(email)
@@ -21,15 +18,17 @@ class PasswordResetService:
             return None
 
         expire = datetime.now(UTC.utc) + timedelta(
-            minutes=self.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
         token_data = {"sub": email, "exp": expire, "type": "password_reset"}
 
-        return jwt.encode(token_data, self.SECRET_KEY, algorithm=self.ALGORITHM)
+        return jwt.encode(token_data, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
     def verify_password_reset_token(self, token: str) -> Optional[str]:
         try:
-            payload = jwt.decode(token, self.SECRET_KEY, algorithms=[self.ALGORITHM])
+            payload = jwt.decode(
+                token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            )
             if payload.get("type") != "password_reset":
                 return None
             email: str = payload.get("sub")
