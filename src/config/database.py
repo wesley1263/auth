@@ -1,15 +1,15 @@
-from pymongo import MongoClient
+from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.database import Database
+
+from src.config.config import settings
 
 
 class MongoDBConfig:
     @staticmethod
-    def get_client() -> MongoClient:
-        # TODO: Mover para variáveis de ambiente
-        MONGO_URI = "mongodb://localhost:27017/auth_db"
-        return MongoClient(MONGO_URI)
+    async def get_client() -> AsyncIOMotorClient:
+        return AsyncIOMotorClient(settings.MONGODB_URL)
 
     @staticmethod
-    def get_database() -> Database:
-        client = MongoDBConfig.get_client()
+    async def get_database() -> Database:
+        client = await MongoDBConfig.get_client()
         return client.auth_service
