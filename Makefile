@@ -1,16 +1,17 @@
 .PHONY: build start stop clean test logs help
 
 help:
-	@echo "Comandos disponíveis:"
+	@echo "Available commands:"
 	@echo "  make dev  - Run application locally with autoreload"
-	@echo "  make build  - Constrói os containers Docker"
-	@echo "  make start  - Inicia a aplicação"
-	@echo "  make stop   - Para a aplicação"
-	@echo "  make clean  - Remove containers e volumes"
-	@echo "  make test   - Executa os testes"
-	@echo "  make logs   - Mostra os logs da aplicação"
+	@echo "  make build  - Build Docker containers"
+	@echo "  make start  - Start the application"
+	@echo "  make stop   - Stop the application"
+	@echo "  make clean  - Remove containers and volumes"
+	@echo "  make test   - Run tests"
+	@echo "  make logs   - Display application logs"
+
 dev:
-	uvicorn main:app --reload
+	@uvicorn main:app --reload
 	
 build:
 	docker-compose build
