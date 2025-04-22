@@ -9,10 +9,11 @@ from src.infrastructure.dependencies import (
     get_oauth_service,
     get_password_reset_service,
 )
-from src.presentation.dtos.auth_dto import LoginDTO, TokenDTO
+from src.presentation.dtos.auth_dto import LoginDTO, TokenDTO, ResponseDTO
 from src.presentation.dtos.password_reset_dto import (
+    OTPRequestPasswordResetDTO,
+    OTPResetPasswordDTO,
     RequestPasswordResetDTO,
-    OTPRequestPasswordResetDTO, OTPResetPasswordDTO,
 )
 
 router = APIRouter()
@@ -169,9 +170,11 @@ async def reset_password(
     password_reset_service=Depends(get_password_reset_service),
 ):
     try:
-        return await password_reset_service.verify_otp_password_reset(
+        result = await password_reset_service.verify_otp_password_reset(
             otp_data,
         )
+        if result:
+            return ResponseDTO(message="Password reset successfully")
     except ServiceException as err:
         raise HTTPException(
             status_code=err.status_code,
