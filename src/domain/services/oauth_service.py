@@ -1,44 +1,37 @@
-from typing import Optional
-
 from google.auth.transport import requests
 from google.oauth2 import id_token
 
-from src.domain.models.user import User
-from src.infrastructure.repositories.user_repository import UserRepository
+from src.config.config import settings
+from src.domain.dtos.user_dto import UserCreateDTO, UserResponseDTO
+from src.domain.exceptions import ServiceException
+from src.domain.services.user_service import UserService
 
 
 class OAuthService:
-    def __init__(self):
-        # TODO: Mover para variáveis de ambiente
-        self.GOOGLE_CLIENT_ID = "your-google-client-id"
-        self.user_repository = UserRepository()
+    def __init__(
+        self,
+        user_service: UserService,
+    ):
+        self.user_service = user_service
 
-    async def verify_google_token(self, token: str) -> Optional[User]:
+    async def verify_google_token(self, token: str) -> UserResponseDTO:
         try:
-            idinfo = id_token.verify_oauth2_token(
-                token, requests.Request(), self.GOOGLE_CLIENT_ID
+            id_info = id_token.verify_oauth2_token(
+                token, requests.Request(), settings.GOOGLE_CLIENT_ID
             )
 
-            if idinfo["iss"] not in [
+            if id_info["iss"] not in [
                 "accounts.google.com",
                 "https://accounts.google.com",
             ]:
-                raise ValueError("Invalid Token")
+                raise ServiceException("Invalid Token", 401)
 
-            user_data = {
-                "email": idinfo["email"],
-                "first_name": idinfo.get("given_name", ""),
-                "last_name": idinfo.get("family_name", ""),
-                "external_id": f"google_{idinfo['sub']}",
-            }
-
-            # Verifica se o usuário já existe
-            existing_user = self.user_repository.find_by_email(user_data["email"])
-            if existing_user:
-                return existing_user
-
-            new_user = User(**user_data)
-            return self.user_repository.create(new_user)
-
+            user_data = UserCreateDTO(
+                email=id_info["email"],
+                first_name=id_info.get("given_name", ""),
+                last_name=id_info.get("family_name", ""),
+                external_id=f"google_{id_info['sub']}",
+            )
+            return await self.user_service.create_user(user_data)
         except ValueError:
-            return None
+            raise ServiceException("Invalid Token", 401)
