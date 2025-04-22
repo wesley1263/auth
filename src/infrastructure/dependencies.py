@@ -3,7 +3,9 @@ from src.domain.services.oauth_service import OAuthService
 from src.domain.services.password_reset_service import PasswordResetService
 from src.domain.services.user_service import UserService
 from src.infrastructure.repositories.user_repository import UserRepository
+
 # TODO: Move all to core/dependencies.py
+
 
 def get_user_repository() -> UserRepository:
     return UserRepository()
