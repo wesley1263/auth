@@ -1,33 +1,47 @@
-from datetime import UTC, datetime, timedelta
 from typing import Optional
 
-import jwt
+from jose import jwt
+import pyotp
 
 from src.config.config import settings
+from src.domain.exceptions import ServiceException
 from src.domain.models.user import User
 from src.infrastructure.repositories.user_repository import UserRepository
+from src.presentation.dtos.password_reset_dto import OTPRequestPasswordResetDTO, OTPResetPasswordDTO
 
 
 class PasswordResetService:
     def __init__(self, user_repository: UserRepository):
         self.user_repository = user_repository
 
-    def create_password_reset_token(self, email: str) -> Optional[str]:
-        user = self.user_repository.find_by_email(email)
+    async def reset_password_otp_code(self, email: str) -> OTPRequestPasswordResetDTO:
+        user = await self.user_repository.find_by_email(email)
         if not user:
-            return None
-
-        expire = datetime.now(UTC.utc) + timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+            raise ServiceException("User not found", 404)
+        totp = pyotp.TOTP(settings.OTP_SECRET, interval=60)
+        # TODO: Implement the email sending
+        return OTPRequestPasswordResetDTO(
+            code=totp.now(),
+            email=email,
         )
-        token_data = {"sub": email, "exp": expire, "type": "password_reset"}
 
-        return jwt.encode(token_data, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    async def verify_otp_password_reset(self, payload: OTPResetPasswordDTO) -> bool:
+        user = await self.user_repository.find_by_email(
+            payload.email,
+        )
+        if not user:
+            raise ServiceException("User not found", 404)
+        totp = pyotp.TOTP(settings.OTP_SECRET)
+        if not totp.verify(payload.code):
+            raise ServiceException("Invalid code", 400)
+        return True
 
-    def verify_password_reset_token(self, token: str) -> Optional[str]:
+    async def verify_password_reset_token(self, token: str) -> Optional[str]:
         try:
             payload = jwt.decode(
-                token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+                token,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM],
             )
             if payload.get("type") != "password_reset":
                 return None
