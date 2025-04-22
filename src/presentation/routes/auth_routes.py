@@ -12,7 +12,7 @@ from src.infrastructure.dependencies import (
 from src.presentation.dtos.auth_dto import LoginDTO, TokenDTO
 from src.presentation.dtos.password_reset_dto import (
     RequestPasswordResetDTO,
-    ResetPasswordDTO,
+    OTPRequestPasswordResetDTO, OTPResetPasswordDTO,
 )
 
 router = APIRouter()
@@ -24,7 +24,10 @@ router = APIRouter()
     status_code=200,
     description="Login user",
 )
-async def login(login_data: LoginDTO, service=Depends(get_auth_service)):
+async def login(
+    login_data: LoginDTO,
+    service=Depends(get_auth_service),
+):
     try:
         return await service.authenticate_user(
             login_data.email,
@@ -45,10 +48,13 @@ async def login(login_data: LoginDTO, service=Depends(get_auth_service)):
 )
 async def google_auth(token: str, oauth_service=Depends(get_oauth_service)):
     """Login user with google."""
-    user = await oauth_service.verify_google_token(token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Token inválido ou expirado")
-    return user
+    try:
+        return await oauth_service.verify_google_token(token)
+    except ServiceException as err:
+        raise HTTPException(
+            status_code=err.status_code,
+            detail=err.message,
+        )
 
 
 @router.post(
@@ -134,31 +140,40 @@ async def delete_user(
 
 
 @router.post(
-    "/auth/forgot-password", status_code=200, description="Request password reset"
+    "/auth/forgot-password",
+    status_code=200,
+    description="Request password reset",
 )
 async def request_password_reset(
     request_data: RequestPasswordResetDTO,
     password_reset_service=Depends(get_password_reset_service),
-):
-    token = password_reset_service.create_password_reset_token(request_data.email)
-    if not token:
-        raise HTTPException(status_code=404, detail="Email não encontrado")
+) -> OTPRequestPasswordResetDTO:
+    try:
+        return await password_reset_service.reset_password_otp_code(
+            request_data.email,
+        )
+    except ServiceException as err:
+        raise HTTPException(
+            status_code=err.status_code,
+            detail=err.message,
+        )
 
-    # TODO: Implementar o envio do email com o token
-    # Por enquanto, retornamos o token diretamente para fins de teste
-    return {"message": "Token de redefinição enviado", "token": token}
 
-
-@router.post("/auth/reset-password", status_code=200, description="Reset password")
+@router.post(
+    "/auth/reset-password",
+    status_code=200,
+    description="Reset password",
+)
 async def reset_password(
-    reset_data: ResetPasswordDTO,
+    otp_data: OTPResetPasswordDTO,
     password_reset_service=Depends(get_password_reset_service),
 ):
-    if not password_reset_service.reset_password(
-        reset_data.token, reset_data.new_password
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="Token has expired or invalid",
+    try:
+        return await password_reset_service.verify_otp_password_reset(
+            otp_data,
         )
-    return {"message": "Password reset successfully"}
+    except ServiceException as err:
+        raise HTTPException(
+            status_code=err.status_code,
+            detail=err.message,
+        )
