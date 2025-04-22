@@ -1,13 +1,16 @@
 from typing import Optional
 
-from jose import jwt
 import pyotp
+from jose import jwt
 
 from src.config.config import settings
 from src.domain.exceptions import ServiceException
 from src.domain.models.user import User
 from src.infrastructure.repositories.user_repository import UserRepository
-from src.presentation.dtos.password_reset_dto import OTPRequestPasswordResetDTO, OTPResetPasswordDTO
+from src.presentation.dtos.password_reset_dto import (
+    OTPRequestPasswordResetDTO,
+    OTPResetPasswordDTO,
+)
 
 
 class PasswordResetService:
@@ -31,7 +34,7 @@ class PasswordResetService:
         )
         if not user:
             raise ServiceException("User not found", 404)
-        totp = pyotp.TOTP(settings.OTP_SECRET)
+        totp = pyotp.TOTP(settings.OTP_SECRET, interval=60)
         if not totp.verify(payload.code):
             raise ServiceException("Invalid code", 400)
         return True
