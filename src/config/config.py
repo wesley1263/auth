@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str = config("SECRET_KEY")
     ALGORITHM: str = config("ALGORITHM")
     MONGODB_URL: str = config("MONGODB_URL")
+    GOOGLE_CLIENT_ID: str = config("GOOGLE_CLIENT_ID")
+    OTP_SECRET: str = config("OTP_SECRET")
 
 
 settings = Settings()
