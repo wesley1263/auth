@@ -31,3 +31,6 @@ class UserUpdateDTO(BaseModel):
     external_id: Optional[str] = None
     is_active: Optional[bool] = None
     password: Optional[str] = None
+
+
+
