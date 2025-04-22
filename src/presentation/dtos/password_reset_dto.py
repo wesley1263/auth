@@ -5,6 +5,12 @@ class RequestPasswordResetDTO(BaseModel):
     email: EmailStr
 
 
-class ResetPasswordDTO(BaseModel):
-    token: str
-    new_password: str
+class OTPRequestPasswordResetDTO(BaseModel):
+    code: str
+    email: str
+
+
+class OTPResetPasswordDTO(BaseModel):
+    code: str
+    password: str
+    email: str
