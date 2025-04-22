@@ -1,6 +1,11 @@
 import bcrypt
 
-from src.domain.dtos.user_dto import UserCreateDTO, UserResponseDTO, UserUpdateDTO, UserDTO
+from src.domain.dtos.user_dto import (
+    UserCreateDTO,
+    UserDTO,
+    UserResponseDTO,
+    UserUpdateDTO,
+)
 from src.domain.exceptions import ServiceException
 from src.domain.models.user import User
 from src.infrastructure.repositories.user_repository import UserRepository
